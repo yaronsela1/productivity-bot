@@ -5,6 +5,106 @@ import { getUserData, saveUser } from '../lib/db';
 import Head from 'next/head';
 
 export default function Dashboard() {
+  // Add this state to your component
+const [slackPreview, setSlackPreview] = useState(null);
+
+// Modify the test function to save the preview to state
+const testSlackMessage = async () => {
+    try {
+      // First get the real emails from your Gmail account
+      const response = await fetch('/api/check-gmail');
+      const data = await response.json();
+      
+      if (data.error) {
+        alert(`Error getting emails: ${data.error}`);
+        return;
+      }
+      
+      const emails = data.emails || [];
+      
+      // Create the message blocks
+      const blocks = [
+        {
+          "type": "header",
+          "text": {
+            "type": "plain_text",
+            "text": "📬 Your Productivity Summary",
+            "emoji": true
+          }
+        },
+        {
+          "type": "divider"
+        }
+      ];
+      
+      // Add email section
+      if (emails.length > 0) {
+        blocks.push(
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "*Important Emails:*"
+            }
+          }
+        );
+        
+        // Add each email as a section
+        emails.forEach(email => {
+          blocks.push({
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": `*From:* ${email.from}\n*Subject:* ${email.subject}\n${email.snippet}`
+            },
+            "accessory": {
+              "type": "button",
+              "text": {
+                "type": "plain_text",
+                "text": "Open Email",
+                "emoji": true
+              },
+              "url": email.url
+            }
+          });
+        });
+      } else {
+        blocks.push({
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": "No important emails to report! 🎉"
+          }
+        });
+      }
+      
+      // Add timestamp at the bottom
+      blocks.push(
+        {
+          "type": "context",
+          "elements": [
+            {
+              "type": "plain_text",
+              "text": `Last updated: ${new Date().toLocaleTimeString()}`,
+              "emoji": true
+            }
+          ]
+        }
+      );
+      
+      // This is the payload that would be sent to Slack
+      const payload = {
+        blocks
+      };
+      
+      // Save the preview to state
+      setSlackPreview(payload);
+      
+    } catch (error) {
+      console.error('Error generating Slack message:', error);
+      alert(`Error generating Slack message: ${error.message}`);
+    }
+  };
   const { data: session, status } = useSession();
   const [whitelist, setWhitelist] = useState([]);
   const [newEmail, setNewEmail] = useState('');
@@ -51,7 +151,144 @@ export default function Dashboard() {
     );
   }
   
-  // Add email to whitelist
+
+  // Add this function to your dashboard component
+const testFullIntegration = async () => {
+    try {
+      // 1. Get the current user data including Slack webhook
+      const userData = await getUserData(session.user.email);
+      
+      if (!userData || !userData.slackWebhook) {
+        alert('Please save a Slack webhook URL first!');
+        return;
+      }
+      
+      // 2. Get important emails
+      const emailResponse = await fetch('/api/check-gmail');
+      const emailData = await emailResponse.json();
+      
+      if (emailData.error) {
+        alert(`Error fetching emails: ${emailData.error}`);
+        return;
+      }
+      
+      const emails = emailData.emails || [];
+      
+      // 3. Create Slack message blocks
+      const blocks = [
+        {
+          "type": "header",
+          "text": {
+            "type": "plain_text",
+            "text": "📬 Your Productivity Summary",
+            "emoji": true
+          }
+        },
+        {
+          "type": "divider"
+        }
+      ];
+      
+      // Add email section
+      if (emails.length > 0) {
+        blocks.push(
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "*Important Emails:*"
+            }
+          }
+        );
+        
+        // Add each email as a section
+        emails.forEach(email => {
+          blocks.push({
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": `*From:* ${email.from}\n*Subject:* ${email.subject}\n${email.snippet}`
+            },
+            "accessory": {
+              "type": "button",
+              "text": {
+                "type": "plain_text",
+                "text": "Open Email",
+                "emoji": true
+              },
+              "url": email.url
+            }
+          });
+        });
+      } else {
+        blocks.push({
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": "No important emails to report! 🎉"
+          }
+        });
+      }
+      
+      // Add timestamp
+      blocks.push(
+        {
+          "type": "context",
+          "elements": [
+            {
+              "type": "plain_text",
+              "text": `Last updated: ${new Date().toLocaleTimeString()}`,
+              "emoji": true
+            }
+          ]
+        }
+      );
+      
+      // 4. Send to Slack
+      const slackResponse = await fetch('/api/send-to-slack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            webhookUrl: userData.slackWebhook,
+            blocks 
+        })
+      });
+
+      const slackData = await slackResponse.json();
+      
+      if (slackResponse.ok) {
+        alert('Success! Message sent to Slack!');
+      } else {
+        throw new Error(`Error: ${slackData.error || 'Failed to send to Slack'}`);
+      }
+          
+      } catch (error) {
+        console.error('Error in full integration test:', error);
+        alert(`Error: ${error.message}`);
+      }
+  };
+  // Add this function in your Dashboard component
+  const testGmailIntegration = async () => {
+    try {
+      const response = await fetch('/api/check-gmail');
+      const data = await response.json();
+      
+      if (data.error) {
+        alert(`Error: ${data.error}\n${data.message || ''}`);
+        console.error('Gmail test error:', data);
+      } else {
+        alert(`Success! Found ${data.emailCount} emails.`);
+        console.log('Emails found:', data.emails);
+      }
+    } catch (error) {
+      alert(`Failed to test Gmail integration: ${error.message}`);
+      console.error('Error testing Gmail:', error);
+    }
+  };
+  
+  // Add email to whitelist 
   const addEmail = () => {
     if (newEmail && !whitelist.includes(newEmail)) {
       setWhitelist([...whitelist, newEmail]);
@@ -157,8 +394,8 @@ export default function Dashboard() {
               onClick={() => setCheckInterval('1h')}
               className={`py-2 px-4 rounded ${
                 checkInterval === '1h' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 text-gray-800'
+                  ? 'bg-blue-600 text-white font-bold shadow-md' 
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
               Every hour
@@ -167,8 +404,8 @@ export default function Dashboard() {
               onClick={() => setCheckInterval('4h')}
               className={`py-2 px-4 rounded ${
                 checkInterval === '4h' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 text-gray-800'
+                  ? 'bg-blue-600 text-white font-bold shadow-md' 
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
               Every 4 hours
@@ -177,8 +414,8 @@ export default function Dashboard() {
               onClick={() => setCheckInterval('1d')}
               className={`py-2 px-4 rounded ${
                 checkInterval === '1d' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 text-gray-800'
+                  ? 'bg-blue-600 text-white font-bold shadow-md' 
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
               }`}
             >
               Once a day
@@ -201,7 +438,24 @@ export default function Dashboard() {
             className="w-full p-2 border rounded mb-4"
           />
         </div>
-        
+        <button
+          onClick={testFullIntegration}
+          className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 ml-2"
+        >
+          Send to Slack
+    </button>
+        <button
+          onClick={testSlackMessage}
+          className="bg-yellow-500 text-white py-2 px-4 rounded hover:bg-yellow-600 ml-2"
+        >
+          Test Slack Message
+        </button>
+        <button
+          onClick={testGmailIntegration}
+          className="bg-purple-500 text-white py-2 px-4 rounded hover:bg-purple-600 ml-2"
+        >
+        Test Gmail Integration
+        </button>
         {/* Save Button */}
         <div className="flex justify-end">
           <button
@@ -212,6 +466,56 @@ export default function Dashboard() {
             {isSaving ? 'Saving...' : 'Save Settings'}
           </button>
         </div>
+        {/* Slack Message Preview */}
+{slackPreview && (
+  <div className="mt-6 bg-white p-6 rounded-lg shadow-md">
+    <h2 className="text-xl font-semibold mb-4">Slack Message Preview</h2>
+    
+    <div className="bg-[#f8f8f8] border border-gray-300 p-4 rounded-md">
+      {/* Header */}
+      <div className="text-lg font-bold mb-2">
+        {slackPreview.blocks[0].text.text}
+      </div>
+      
+      <hr className="my-3" />
+      
+      {/* Important Emails Section */}
+      <div className="font-bold mb-2">Important Emails:</div>
+      
+      {/* Email Items */}
+      {slackPreview.blocks.slice(3, -1).map((block, index) => (
+        <div key={index} className="my-3 p-3 bg-white border border-gray-200 rounded">
+          {block.text && block.text.text.split('\n').map((line, i) => (
+            <div key={i} className={i === 0 || i === 1 ? 'font-medium' : ''}>
+              {line}
+            </div>
+          ))}
+          {block.accessory && (
+            <a 
+              href={block.accessory.url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-block mt-2 px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+            >
+              Open Email
+            </a>
+          )}
+        </div>
+      ))}
+      
+      {/* Timestamp */}
+      <div className="text-sm text-gray-500 mt-3">
+        {slackPreview.blocks[slackPreview.blocks.length - 1].elements[0].text}
+      </div>
+    </div>
+    
+    <div className="mt-4">
+      <p className="text-sm text-gray-600">
+        This is a preview of how your message will appear in Slack when you have a webhook configured.
+      </p>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );

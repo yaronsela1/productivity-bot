@@ -8,6 +8,8 @@ export async function getImportantEmails(accessToken, options = {}) {
     const { whitelist = [], since = '1d' } = options;
     
     try {
+      console.log(`Starting email fetch with whitelist: ${whitelist.join(', ')}`);
+      
       // Calculate the time period (default to 1 day ago)
       const sinceDate = new Date();
       if (since === '1d') sinceDate.setDate(sinceDate.getDate() - 1);
@@ -23,6 +25,9 @@ export async function getImportantEmails(accessToken, options = {}) {
       if (whitelist.length > 0) {
         const whitelistQuery = whitelist.map(email => `from:${email}`).join(' OR ');
         query += ` AND (${whitelistQuery})`;
+        console.log('Gmail query with whitelist:', query);
+      } else {
+        console.log('Gmail query without whitelist:', query);
       }
       
       // Fetch messages matching the query
@@ -37,9 +42,14 @@ export async function getImportantEmails(accessToken, options = {}) {
   
       const data = await response.json();
       
+      console.log('Gmail API response:', data);
+      
       if (!data.messages) {
+        console.log('No messages found matching the criteria');
         return []; // No messages found
       }
+      
+      console.log(`Found ${data.messages.length} messages, fetching details...`);
       
       // Fetch details for each message
       const emails = await Promise.all(
@@ -64,6 +74,8 @@ export async function getImportantEmails(accessToken, options = {}) {
           // Extract snippet (preview) of the email
           const snippet = messageData.snippet || '';
           
+          console.log(`Processed email from: ${from}, subject: ${subject}`);
+          
           return {
             id: message.id,
             from,
@@ -75,6 +87,7 @@ export async function getImportantEmails(accessToken, options = {}) {
         })
       );
       
+      console.log(`Returning ${emails.length} processed emails`);
       return emails;
       
     } catch (error) {
